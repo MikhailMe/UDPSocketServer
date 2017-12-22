@@ -23,7 +23,6 @@
 // commands
 #define _TEXT              "text"
 #define _COUNT             "count"
-#define _LOOSE             "loose"
 #define _EXIT              "shutdown"
 
 // separator
@@ -77,21 +76,12 @@ void client_read_handler(int client_socket, sockaddr_in from) {
     char buffer[BUFFER_SIZE + 1];
     socklen_t length = sizeof(from);
     int counter = 0;
-
-    std::cout << "isCommand = " << flag << std::endl;
     while (true) {
 
         /*
-         *  НАЧАЛО ОБРАБОТКА ПОТЕРИ ДЕЙТАГРАММЫ
-         *
+         *  НАЧАЛО ОБРАБОТКИ ПОТЕРИ ДЕЙТАГРАММЫ
          *
          * */
-
-        //std::cout << "before counter == 2 | counter = " << counter << std::endl;
-        if (counter == 3) {
-            datagram_number--;
-            break;
-        }
 
         struct timeval timeout = {3, 0};
         fd_set readSet;
@@ -100,6 +90,11 @@ void client_read_handler(int client_socket, sockaddr_in from) {
 
         auto &&select_status = select(client_socket + 1, &readSet, NULL, NULL, &timeout);
 
+        if (counter == 3) {
+            datagram_number--;
+            break;
+        }
+
         if (select_status > 0) {
 
             if (FD_ISSET(client_socket, &readSet)) {
@@ -107,7 +102,6 @@ void client_read_handler(int client_socket, sockaddr_in from) {
                     std::cerr << "recvfrom error" << std::endl;
                     break;
                 }
-                std::cout << "схавали ответ" << std::endl;
                 flag = false;
                 if (hasSpecSymb(buffer)){
                     datagram_number++;
@@ -115,15 +109,14 @@ void client_read_handler(int client_socket, sockaddr_in from) {
             } else {
                 continue;
             }
-            // СРАЗУ ОТПРАВЛЯЕТ
         } else if (select_status == 0) {
             if (flag) {
                 counter++;
                 std::cout << "send one more" << std::endl;
-                std::string one_more(_LOOSE);
+                std::string one_more("lost?");
                 addDatagramNumber(one_more, datagram_number);
                 if (sendto(client_socket, one_more.c_str(), sizeof(one_more), 0, (struct sockaddr *) &from, length) < 0) {
-                    std::cerr << "!sendto error" << std::endl;
+                    std::cerr << "sendto error" << std::endl;
                     break;
                 }
             }
@@ -139,15 +132,6 @@ void client_read_handler(int client_socket, sockaddr_in from) {
        *
        * */
 
-
-        // FIXME
-        /*bzero(buffer, BUFFER_SIZE + 1);
-        if (recvfrom(client_socket, buffer, sizeof(buffer), 0, (struct sockaddr *) &from, &length) < 0) {
-            std::cerr << "recvfrom error" << std::endl;
-            break;
-        }*/
-
-
         // string = message$number$DUPLICATED
         // parsing
         std::string response(buffer);
@@ -157,7 +141,6 @@ void client_read_handler(int client_socket, sockaddr_in from) {
         int number = std::atoi(response.substr(start_index_of_num + 1, last_index_of_num).c_str());
         unsigned long last_index_of_message = response.size() - 1;
         response = response.substr(last_index_of_num + 1, last_index_of_message);
-        std::cout << "after select |  RESPONSE FROM SERVER = " << response << std::endl;
 
         if (strcmp(buffer, _EXIT) == 0) {
             break;
@@ -174,8 +157,7 @@ void client_read_handler(int client_socket, sockaddr_in from) {
             }
             datagram_number = number;
             cutDatagramNumber(repeate_send_message);
-            std::cout << "########## datagram_num = " << number << " | message = " << repeate_send_message << "\n"
-                      << std::endl;
+            std::cout << "datagram_num = " << number << " | message = " << repeate_send_message << "\n" << std::endl;
             datagram_number++;
             continue;
         }
@@ -185,10 +167,17 @@ void client_read_handler(int client_socket, sockaddr_in from) {
             continue;
         }
 
-        std::cout << "Server's response: \"" << buffer << "\"\n" << std::endl;
+        // @message$datagram_number
+        if (hasSpecSymb(buffer)) {
+            std::string resp(buffer);
+            resp = resp.substr(1, resp.size());
+            cutDatagramNumber(resp);
+            std::strcpy(buffer, resp.c_str());
+        }
+        std::cout << "Server's response: \"" << buffer << "\"" << std::endl;
+        std::cout << "*********************************************************" << std::endl;
     }
     std::cout << "Server is unreachable" << std::endl;
-    close(client_socket);
 }
 
 void text(int client_socket, sockaddr_in server, int &datagram_number) {
@@ -196,17 +185,14 @@ void text(int client_socket, sockaddr_in server, int &datagram_number) {
     std::string command = _TEXT;
     addDatagramNumber(command, datagram_number);
     // отправили серверу уведомление, что сейчас будет отправлен текст
-    if (sendto(client_socket, command.c_str(), sizeof(command), 0, reinterpret_cast<const sockaddr *>(&server),
-               server_size) < 0) {
+    if (sendto(client_socket, command.c_str(), sizeof(command), 0, reinterpret_cast<const sockaddr *>(&server), server_size) < 0) {
         std::cerr << "sendto error" << std::endl;
         return;
     }
-
     cutDatagramNumber(command);
-    std::cout << "########## datagram_num = " << datagram_number << " | message = " << command << "\n" << std::endl;
+    std::cout << "datagram_num = " << datagram_number << " | message = " << command << "\n" << std::endl;
     // FIXME закоментировать для "дублирования"
     datagram_number++;
-
     std::string message;
     std::cout << "Your message to server: ";
     std::getline(std::cin, message);
@@ -216,9 +202,8 @@ void text(int client_socket, sockaddr_in server, int &datagram_number) {
         std::cerr << "sendto error" << std::endl;
         return;
     }
-
     cutDatagramNumber(message);
-    std::cout << "########## datagram_num = " << datagram_number << " | message = " << message << "\n" << std::endl;
+    std::cout << "datagram_num = " << datagram_number << " | message = " << message << "\n" << std::endl;
     datagram_number++;
     std::cout << "message: \"" << message << "\" send to server" << std::endl;
 }
@@ -234,7 +219,7 @@ void count(int client_socket, sockaddr_in server, int &datagram_number) {
         return;
     }
     cutDatagramNumber(count);
-    std::cout << "########## datagram_num = " << datagram_number << " | message = " << count << "\n" << std::endl;
+    std::cout << "datagram_num = " << datagram_number << " | message = " << count << "\n" << std::endl;
     datagram_number++;
 
     std::string computation;
@@ -248,7 +233,7 @@ void count(int client_socket, sockaddr_in server, int &datagram_number) {
         return;
     }
     cutDatagramNumber(first_num);
-    std::cout << "########## datagram_num = " << datagram_number << " | message = " << first_num << "\n" << std::endl;
+    std::cout << "datagram_num = " << datagram_number << " | first number = " << first_num << "\n" << std::endl;
     datagram_number++;
 
     std::string operation;
@@ -261,7 +246,7 @@ void count(int client_socket, sockaddr_in server, int &datagram_number) {
         return;
     }
     cutDatagramNumber(operation);
-    std::cout << "########## datagram_num = " << datagram_number << " | message = " << operation << "\n" << std::endl;
+    std::cout << "datagram_num = " << datagram_number << " | operation = " << operation << "\n" << std::endl;
     datagram_number++;
     // если выполняем долгую операцию => вторая чиселка просто не нужна!
     if (strcmp(operation.c_str(), _SQRT) != 0 && strcmp(operation.c_str(), _FACTORIAL) != 0) {
@@ -277,7 +262,7 @@ void count(int client_socket, sockaddr_in server, int &datagram_number) {
             return;
         }
         cutDatagramNumber(second_num);
-        std::cout << "########## datagram_num = " << datagram_number << " | message = " << second_num << "\n"
+        std::cout << "datagram_num = " << datagram_number << " | second number = " << second_num << "\n"
                   << std::endl;
         datagram_number++;
         computation += second_num;

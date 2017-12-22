@@ -23,7 +23,6 @@
 // client commands
 #define _TEXT              "text"
 #define _COUNT             "count"
-#define _LOOSE             "loose"
 
 // server commands
 #define _LIST              "list"

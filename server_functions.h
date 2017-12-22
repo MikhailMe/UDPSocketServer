@@ -118,7 +118,7 @@ void read_count(count_request &cr, sockaddr_in from, int &datagram_number) {
         }
     }
 
-    std::cout << "########## datagram_num = " << dg_num << " | message = " << first_num << "\n" << std::endl;
+    std::cout << "first num  = " << first_num << "\n" << std::endl;
     cr.first_number = std::atof(buffer);
     datagram_number++;
 
@@ -130,7 +130,21 @@ void read_count(count_request &cr, sockaddr_in from, int &datagram_number) {
     }
     std::string operation = buffer;
     dg_num = getDatagamNumber(operation);
-    std::cout << "########## datagram_num = " << dg_num << " | message = " << operation << "\n" << std::endl;
+    std::cout << "что приняли  : " << dg_num << std::endl;
+    std::cout << "что надо было: " << datagram_number << std::endl;
+    if (dg_num == datagram_number - 1) {
+        // message$number$DUPLICATED
+        std::cout << DUPLICATED << std::endl;
+        std::string dupl(first_num);
+        addDatagramNumber(dupl, dg_num);
+        dupl.append(SEPARATOR);
+        dupl.append(DUPLICATED);
+        if (sendto(cr.socket, dupl.c_str(), BUFFER_SIZE, 0, (sockaddr *) (&from), from_size) < 0) {
+            std::cerr << "sendto error" << std::endl;
+            return;
+        }
+    }
+    std::cout << "operation  = " << operation << "\n" << std::endl;
     cr.operation = operation;
     datagram_number++;
     // если операция '+', '-', '*', '/', то надо прочитать вторую чиселку
@@ -144,7 +158,21 @@ void read_count(count_request &cr, sockaddr_in from, int &datagram_number) {
         }
         std::string sec_num(buffer);
         dg_num = getDatagamNumber(sec_num);
-        std::cout << "########## datagram_num = " << dg_num << " | message = " << sec_num << "\n" << std::endl;
+        std::cout << "что приняли  : " << dg_num << std::endl;
+        std::cout << "что надо было: " << datagram_number << std::endl;
+        if (dg_num == datagram_number - 1) {
+            // message$number$DUPLICATED
+            std::cout << DUPLICATED << std::endl;
+            std::string dupl(first_num);
+            addDatagramNumber(dupl, dg_num);
+            dupl.append(SEPARATOR);
+            dupl.append(DUPLICATED);
+            if (sendto(cr.socket, dupl.c_str(), BUFFER_SIZE, 0, (sockaddr *) (&from), from_size) < 0) {
+                std::cerr << "sendto error" << std::endl;
+                return;
+            }
+        }
+        std::cout << "second num = " << sec_num << "\n" << std::endl;
         datagram_number++;
         cr.isSlow = false;
         cr.second_number = std::stoi(buffer);
@@ -249,7 +277,7 @@ void server_handler(int server_socket, int datagram_number, std::shared_ptr<Thre
             continue;
         }
 
-        std::cout << "datagram_num = " << dg_num << " | message = \"" << buf << "\"\n" << std::endl;
+        std::cout << "message = \"" << buf << "\"\n" << std::endl;
 
         client new_client{};
         new_client.ip = inet_ntoa(from.sin_addr);
@@ -294,16 +322,17 @@ void server_handler(int server_socket, int datagram_number, std::shared_ptr<Thre
             read_count(cr, from, datagram_number);
             thread_pool->enqueue(processing, cr, new_client, from);
             lock.unlock();
-        } else if (buf == _LOOSE) {
+        } else {
             std::string request(buffer);
             getDatagamNumber(request);
+            std::string temp(request);
             std::cout << "from " << new_client.ip << ":" << new_client.port << " received: \"" << request << "\"" << std::endl;
             addDatagramNumber(request, datagram_number);
             std::string response(SPEC_SYMB);
             response.append(request);
-            // ДЛЯ ПОТЕРИ ЗАКОМЕНТИРОВАТЬ
+            // ДЛЯ ПОТЕРИ ДЕЙТАГРАММ ЗАКОМЕНТИРОВАТЬ
             datagram_number++;
-            std::cout << "message: \"" << response << "\" send to " << new_client.ip << ":" << new_client.port << std::endl;
+            std::cout << "message: \"" << temp << "\" send to " << new_client.ip << ":" << new_client.port << std::endl;
             std::cout << "*********************************************************" << std::endl;
             // отправили его в ответку
             if (sendto(server_socket, response.c_str(), BUFFER_SIZE, 0, (sockaddr *) (&from), from_size) < 0) {

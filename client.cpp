@@ -77,9 +77,9 @@ int main() {
     auto &&client_thread = std::make_unique<std::thread>(client_read_handler, client_socket, from);
 
     cutDatagramNumber(buffer);
-    std::cout << "########## datagram_num = " << datagram_number << " | message = " << buffer << "\n" << std::endl;
+    std::cout << "datagram_num = " << datagram_number << " | message = " << buffer << "\n" << std::endl;
     datagram_number++;
-
+    std::cout << "*********************************************************" << std::endl;
     while (true) {
         std::string command;
         std::getline(std::cin, command);
@@ -98,11 +98,11 @@ int main() {
             shutdown(client_socket, SHUT_RDWR);
             close(client_socket);
             break;
-        } else if (command == _LOOSE){
+        } else {
             flag = true;
-            std::string message(_LOOSE);
+            std::string message(command);
+            std::cout << "datagram_num = " << datagram_number << " | message = \"" << message << "\"" << std::endl;
             addDatagramNumber(message, datagram_number);
-            std::cout << "message = " << message << std::endl;
             if (sendto(client_socket, message.c_str(), sizeof(message), 0, (struct sockaddr *) &server, length) < 0) {
                 std::cerr << "sendto error" << std::endl;
                 return SENDTO_ERROR;

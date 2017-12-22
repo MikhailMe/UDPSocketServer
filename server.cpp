@@ -44,10 +44,10 @@ int main() {
             int client_id = whom();
             write(client_id, server_socket);
         } else if (command == _KILL) {
-            //int client_id = whom();
-            //kill(client_id);
+            int client_id = whom();
+            kill(client_id);
         } else if (command == _KILLALL) {
-            //killall();
+            killall();
         } else if (command == _EXIT) {
             std::cout << "client was closed" << std::endl;
             break;

@@ -57,14 +57,14 @@ void text(int server_socket, client cl, sockaddr_in from, int &datagram_number) 
     }
 
     if (!is_duplicated) {
-        std::cout << "########## datagram_num = " << dg_num << " | message = " << mes << "\n" << std::endl;
-        std::cout << cl.ip << ":" << cl.port << " send: " << mes << std::endl;
+        std::cout << "from " << cl.ip << ":" << cl.port << " received: \"" << mes << "\"" << std::endl;
         if (sendto(server_socket, mes.c_str(), BUFFER_SIZE, 0, (sockaddr *) (&from), from_size) < 0) {
             std::cerr << "sendto error" << std::endl;
             return;
         }
         datagram_number++;
         std::cout << "message: \"" << mes << "\" send to " << cl.ip << ":" << cl.port << std::endl;
+        std::cout << "*********************************************************" << std::endl;
     }
 }
 
@@ -165,6 +165,7 @@ void processing(count_request &cr, client &cl, sockaddr_in &from) {
     std::cout << "Client " << cl.ip << ":" << cl.port << " send request: " << request.c_str() << std::endl;
     result = operation_processing(cr.first_number, cr.operation, cr.second_number);
     std::cout << "Server's response: " << result << "\n" << std::endl;
+    std::cout << "*********************************************************" << std::endl;
     response = std::to_string(result);
     if (sendto(cr.socket, response.c_str(), BUFFER_SIZE, 0, (sockaddr *) (&from), from_size) < 0) {
         std::cerr << "sendto error" << std::endl;
@@ -248,8 +249,7 @@ void server_handler(int server_socket, int datagram_number, std::shared_ptr<Thre
             continue;
         }
 
-        std::cout << "!########## datagram_num = " << dg_num << " | message = " << buf << "\n" << std::endl;
-        datagram_number++;
+        std::cout << "datagram_num = " << dg_num << " | message = \"" << buf << "\"\n" << std::endl;
 
         client new_client{};
         new_client.ip = inet_ntoa(from.sin_addr);
@@ -275,7 +275,9 @@ void server_handler(int server_socket, int datagram_number, std::shared_ptr<Thre
                     return;
                 }
                 connection_counter++;
+                datagram_number++;
                 std::cout << "sent response ack to client" << std::endl;
+                std::cout << "*********************************************************" << std::endl;
             }
         } else if (buf == _EXIT || buf == "") {
             std::cout << new_client.ip << ":" << new_client.port << " disconnected" << std::endl;
@@ -283,13 +285,31 @@ void server_handler(int server_socket, int datagram_number, std::shared_ptr<Thre
             clients.erase(clients.begin() + new_client.number_connection);
             cl_lock.unlock();
         } else if (buf == _TEXT) {
+            datagram_number++;
             text(server_socket, new_client, from, datagram_number);
         } else if (buf == _COUNT) {
+            datagram_number++;
             std::unique_lock<std::mutex> lock(count_mutex);
             cr.socket = server_socket;
             read_count(cr, from, datagram_number);
             thread_pool->enqueue(processing, cr, new_client, from);
             lock.unlock();
+        } else if (buf == _LOOSE) {
+            std::string request(buffer);
+            getDatagamNumber(request);
+            std::cout << "from " << new_client.ip << ":" << new_client.port << " received: \"" << request << "\"" << std::endl;
+            addDatagramNumber(request, datagram_number);
+            std::string response(SPEC_SYMB);
+            response.append(request);
+            // ДЛЯ ПОТЕРИ ЗАКОМЕНТИРОВАТЬ
+            datagram_number++;
+            std::cout << "message: \"" << response << "\" send to " << new_client.ip << ":" << new_client.port << std::endl;
+            std::cout << "*********************************************************" << std::endl;
+            // отправили его в ответку
+            if (sendto(server_socket, response.c_str(), BUFFER_SIZE, 0, (sockaddr *) (&from), from_size) < 0) {
+                std::cerr << "sendto error" << std::endl;
+                return;
+            }
         }
     }
 }

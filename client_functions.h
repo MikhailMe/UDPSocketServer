@@ -23,10 +23,12 @@
 // commands
 #define _TEXT              "text"
 #define _COUNT             "count"
+#define _LOOSE             "loose"
 #define _EXIT              "shutdown"
 
 // separator
 #define SEPARATOR          "$"
+#define SPEC_SYMB          '@'
 
 // messages
 #define MIXING             "MIXING"
@@ -37,6 +39,8 @@
 const size_t BUFFER_SIZE = 512;
 const size_t PORT = 7777;
 int datagram_number;
+static bool flag;
+
 
 void addDatagramNumber(std::string &message, int number) {
     message.append(SEPARATOR);
@@ -65,15 +69,85 @@ std::string cutDatagramNumber(char charArrayWithDatagramNumber[]) {
     return stringWithDatagramNumber;
 }
 
+bool hasSpecSymb(char buffer[]) {
+    return buffer[0] == (char) SPEC_SYMB ;
+}
+
 void client_read_handler(int client_socket, sockaddr_in from) {
     char buffer[BUFFER_SIZE + 1];
     socklen_t length = sizeof(from);
+    int counter = 0;
+
+    std::cout << "isCommand = " << flag << std::endl;
     while (true) {
-        bzero(buffer, BUFFER_SIZE + 1);
+
+        /*
+         *  НАЧАЛО ОБРАБОТКА ПОТЕРИ ДЕЙТАГРАММЫ
+         *
+         *
+         * */
+
+        //std::cout << "before counter == 2 | counter = " << counter << std::endl;
+        if (counter == 3) {
+            datagram_number--;
+            break;
+        }
+
+        struct timeval timeout = {3, 0};
+        fd_set readSet;
+        FD_ZERO(&readSet);
+        FD_SET(client_socket, &readSet);
+
+        auto &&select_status = select(client_socket + 1, &readSet, NULL, NULL, &timeout);
+
+        if (select_status > 0) {
+
+            if (FD_ISSET(client_socket, &readSet)) {
+                if (recvfrom(client_socket, buffer, sizeof(buffer), 0, (struct sockaddr *) &from, &length) < 0) {
+                    std::cerr << "recvfrom error" << std::endl;
+                    break;
+                }
+                std::cout << "схавали ответ" << std::endl;
+                flag = false;
+                if (hasSpecSymb(buffer)){
+                    datagram_number++;
+                }
+            } else {
+                continue;
+            }
+            // СРАЗУ ОТПРАВЛЯЕТ
+        } else if (select_status == 0) {
+            if (flag) {
+                counter++;
+                std::cout << "send one more" << std::endl;
+                std::string one_more(_LOOSE);
+                addDatagramNumber(one_more, datagram_number);
+                if (sendto(client_socket, one_more.c_str(), sizeof(one_more), 0, (struct sockaddr *) &from, length) < 0) {
+                    std::cerr << "!sendto error" << std::endl;
+                    break;
+                }
+            }
+            continue;
+        } else {
+            std::cerr << "select error" << std::endl;
+            return;
+        }
+
+        /*
+       *  КОНЕЦ ОБРАБОТКИ ПОТЕРИ ДЕЙТАГРАММЫ
+       *
+       *
+       * */
+
+
+        // FIXME
+        /*bzero(buffer, BUFFER_SIZE + 1);
         if (recvfrom(client_socket, buffer, sizeof(buffer), 0, (struct sockaddr *) &from, &length) < 0) {
             std::cerr << "recvfrom error" << std::endl;
             break;
-        }
+        }*/
+
+
         // string = message$number$DUPLICATED
         // parsing
         std::string response(buffer);
@@ -83,6 +157,7 @@ void client_read_handler(int client_socket, sockaddr_in from) {
         int number = std::atoi(response.substr(start_index_of_num + 1, last_index_of_num).c_str());
         unsigned long last_index_of_message = response.size() - 1;
         response = response.substr(last_index_of_num + 1, last_index_of_message);
+        std::cout << "after select |  RESPONSE FROM SERVER = " << response << std::endl;
 
         if (strcmp(buffer, _EXIT) == 0) {
             break;
@@ -92,13 +167,15 @@ void client_read_handler(int client_socket, sockaddr_in from) {
             std::cout << "This problem is solved!" << std::endl;
             number++;
             addDatagramNumber(repeate_send_message, number);
-            if (sendto(client_socket, repeate_send_message.c_str(), sizeof(repeate_send_message), 0, reinterpret_cast<const sockaddr *>(&from), length) < 0) {
+            if (sendto(client_socket, repeate_send_message.c_str(), sizeof(repeate_send_message), 0,
+                       reinterpret_cast<const sockaddr *>(&from), length) < 0) {
                 std::cerr << "sendto error" << std::endl;
                 return;
             }
             datagram_number = number;
             cutDatagramNumber(repeate_send_message);
-            std::cout << "########## datagram_num = " << number << " | message = " << repeate_send_message << "\n" << std::endl;
+            std::cout << "########## datagram_num = " << number << " | message = " << repeate_send_message << "\n"
+                      << std::endl;
             datagram_number++;
             continue;
         }
@@ -110,6 +187,7 @@ void client_read_handler(int client_socket, sockaddr_in from) {
 
         std::cout << "Server's response: \"" << buffer << "\"\n" << std::endl;
     }
+    std::cout << "Server is unreachable" << std::endl;
     close(client_socket);
 }
 
@@ -118,7 +196,8 @@ void text(int client_socket, sockaddr_in server, int &datagram_number) {
     std::string command = _TEXT;
     addDatagramNumber(command, datagram_number);
     // отправили серверу уведомление, что сейчас будет отправлен текст
-    if (sendto(client_socket, command.c_str(), sizeof(command), 0, reinterpret_cast<const sockaddr *>(&server), server_size) < 0) {
+    if (sendto(client_socket, command.c_str(), sizeof(command), 0, reinterpret_cast<const sockaddr *>(&server),
+               server_size) < 0) {
         std::cerr << "sendto error" << std::endl;
         return;
     }
@@ -132,7 +211,8 @@ void text(int client_socket, sockaddr_in server, int &datagram_number) {
     std::cout << "Your message to server: ";
     std::getline(std::cin, message);
     addDatagramNumber(message, datagram_number);
-    if (sendto(client_socket, message.c_str(), sizeof(message), 0, reinterpret_cast<const sockaddr *>(&server), server_size) < 0) {
+    if (sendto(client_socket, message.c_str(), sizeof(message), 0, reinterpret_cast<const sockaddr *>(&server),
+               server_size) < 0) {
         std::cerr << "sendto error" << std::endl;
         return;
     }

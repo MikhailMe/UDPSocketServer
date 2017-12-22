@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
-project(tryudp)
+project(UDPSocketServer)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -g2 -O0")

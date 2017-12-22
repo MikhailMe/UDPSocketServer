@@ -23,6 +23,7 @@
 // client commands
 #define _TEXT              "text"
 #define _COUNT             "count"
+#define _LOOSE             "loose"
 
 // server commands
 #define _LIST              "list"
@@ -33,6 +34,7 @@
 
 // seperator
 #define SEPARATOR          "$"
+#define SPEC_SYMB          "@"
 
 // messages
 #define MIXING             "_MIXING_"

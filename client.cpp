@@ -2,6 +2,7 @@
 
 int main() {
     int client_socket;
+    flag = false;
     datagram_number = 0;
     char buffer[BUFFER_SIZE + 1];
     struct sockaddr_in server{}, from;
@@ -83,69 +84,13 @@ int main() {
         std::string command;
         std::getline(std::cin, command);
         if (command == _TEXT) {
-
-            /*addDatagramNumber(command, datagram_number);
-            // отправили серверу уведомление, что сейчас будет отправлен текст
-            if (sendto(client_socket, command.c_str(), sizeof(command), 0, reinterpret_cast<const sockaddr *>(&server), length) < 0) {
-                std::cerr << "sendto error" << std::endl;
-                return SENDTO_ERROR;
-            }
-
-
-            static volatile bool flag = false;
-            bool loss = false; // потеря
-            struct timeval timeout = {5, 0};
-            fd_set readSet;
-            FD_ZERO(&readSet);
-            FD_SET(client_socket, &readSet);
-            if (select(client_socket + 1, &readSet, NULL, NULL, &timeout) >= 0) {
-
-                if (flag) {
-                    std::cout << "MyThread:  main thread wants me to scram, bye bye" << std::endl;
-                } else if (FD_ISSET(client_socket, &readSet)) {
-                    if (recvfrom(client_socket, buffer, sizeof(buffer), 0, (struct sockaddr *) &from, &length) < 0) {
-                        std::cerr << "recvfrom error" << std::endl;
-                        return RECVFROM_ERROR;
-                    }
-                    std::cout << "datagram_num = " << datagram_number << " | message = " << buffer << std::endl;
-                    std::cout << "received request ack" << std::endl;
-
-                    cutDatagramNumber(command);
-                    std::cout << "########## datagram_num = " << datagram_number << " | message = " << command << "\n" << std::endl;
-                    // FIXME закоментировать для "дублирования"
-                    datagram_number++;
-
-                    std::string message;
-                    std::cout << "Your message to server: ";
-                    std::getline(std::cin, message);
-                    addDatagramNumber(message, datagram_number);
-                    if (sendto(client_socket, message.c_str(), sizeof(message), 0, reinterpret_cast<const sockaddr *>(&server), length) < 0) {
-                        std::cerr << "sendto error" << std::endl;
-                        return SENDTO_ERROR;
-                    }
-
-                    cutDatagramNumber(message);
-                    std::cout << "########## datagram_num = " << datagram_number << " | message = " << message << "\n" << std::endl;
-                    datagram_number++;
-                    std::cout << "message: \"" << message << "\" send to server" << std::endl;
-
-                    loss = true;
-                }
-            } else {
-                std::cerr << "select error" << std::endl;
-            }
-
-            if (!loss) {
-                datagram_number--;
-                std::cout << " Loss .............." << std::endl;
-                continue;
-            }
-*/
-
+            flag = false;
             text(client_socket, server, datagram_number);
         } else if (command == _COUNT) {
+            flag = false;
             count(client_socket, server, datagram_number);
         } else if (command == _EXIT) {
+            flag = false;
             if (sendto(client_socket, "", sizeof(""), 0, (struct sockaddr *) &server, length) < 0) {
                 std::cerr << "sendto error" << std::endl;
                 return SENDTO_ERROR;
@@ -153,6 +98,15 @@ int main() {
             shutdown(client_socket, SHUT_RDWR);
             close(client_socket);
             break;
+        } else if (command == _LOOSE){
+            flag = true;
+            std::string message(_LOOSE);
+            addDatagramNumber(message, datagram_number);
+            std::cout << "message = " << message << std::endl;
+            if (sendto(client_socket, message.c_str(), sizeof(message), 0, (struct sockaddr *) &server, length) < 0) {
+                std::cerr << "sendto error" << std::endl;
+                return SENDTO_ERROR;
+            }
         }
     }
     client_thread->join();
